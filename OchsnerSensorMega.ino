@@ -11,39 +11,43 @@ IPAddress ip(192, 168, 1, 97);
 // PRESENT: 451-900
 // IDLE: > 900
 
+// Presence States
 #define ACTIVE_STATE 0
 #define PRESENT_STATE 1
 #define IDLE_STATE 2
 
-#define STATE_CHANGE_BUFFER_SECONDS 2
-#define ACTIVE_MAX_INCHES 24
-#define PRESENT_MAX_INCHES 48
+#define NUM_STATIONS 6                // The number of stations
+
+#define STATE_CHANGE_BUFFER_SECONDS 2 // The buffer period before changing states
+#define ACTIVE_MAX_INCHES 24          // The max distance for the ACTIVE state
+#define PRESENT_MAX_INCHES 48         // The max distance for the PRESENT state
 
 // Station Pins
-const int L1_sensorPin = 54;
-const int L1_activePin = 22;
-const int L1_presentPin = 23;
+const int L1_sensorPin = 54;          // The proximity sensor pin for L1 (INPUT)
+const int L1_activePin = 22;          // The ACTIVE state pin to trigger the L1 matrix/teensy (OUTPUT)
+const int L1_presentPin = 23;         // The PRESENT state pin to trigger the L1 matrix/teensy (OUTPUT)
 
-const int L2_sensorPin = 55;
-const int L2_activePin = 24;
-const int L2_presentPin = 25;
+const int L2_sensorPin = 55;          // The proximity sensor pin for L2 (INPUT)
+const int L2_activePin = 24;          // The ACTIVE state pin to trigger the L2 matrix/teensy (OUTPUT)
+const int L2_presentPin = 25;         // The PRESENT state pin to trigger the L2 matrix/teensy (OUTPUT)
 
-const int L3_sensorPin = 56;
-const int L3_activePin = 26;
-const int L3_presentPin = 27;
+const int L3_sensorPin = 56;          // The proximity sensor pin for L3 (INPUT)
+const int L3_activePin = 26;          // The ACTIVE state pin to trigger the L3 matrix/teensy (OUTPUT)
+const int L3_presentPin = 27;         // The PRESENT state pin to trigger the L3 matrix/teensy (OUTPUT)
 
-const int R1_sensorPin = 57;
-const int R1_activePin = 28;
-const int R1_presentPin = 29;
+const int R1_sensorPin = 57;          // The proximity sensor pin for R1 (INPUT)
+const int R1_activePin = 28;          // The ACTIVE state pin to trigger the R1 matrix/teensy (OUTPUT)
+const int R1_presentPin = 29;         // The PRESENT state pin to trigger the R1 matrix/teensy (OUTPUT)
 
-const int R2_sensorPin = 58;
-const int R2_activePin = 30;
-const int R2_presentPin = 31;
+const int R2_sensorPin = 58;          // The proximity sensor pin for R2 (INPUT)
+const int R2_activePin = 30;          // The ACTIVE state pin to trigger the R2 matrix/teensy (OUTPUT)
+const int R2_presentPin = 31;         // The PRESENT state pin to trigger the R2 matrix/teensy (OUTPUT)
 
-const int R3_sensorPin = 59;
-const int R3_activePin = 32;
-const int R3_presentPin = 33;
+const int R3_sensorPin = 59;          // The proximity sensor pin for R3 (INPUT)
+const int R3_activePin = 32;          // The ACTIVE state pin to trigger the R3 matrix/teensy (OUTPUT)
+const int R3_presentPin = 33;         // The PRESENT state pin to trigger the R3 matrix/teensy (OUTPUT)
 
+// Initialize the current state for each station
 int L1_currentState;
 int L2_currentState;
 int L3_currentState;
@@ -51,69 +55,68 @@ int R1_currentState;
 int R2_currentState;
 int R3_currentState;
 
-
+// Initialize the ethernet library
 EthernetClient net;
-PubSubClient client(net);
+// Initialize the MQTT library
+PubSubClient mqttClient(net);
 
-// String brokerIp = "192.168.1.77";
-const char* mqtt_server = "192.168.1.69";
+const char* mqttServer = "192.168.1.69";
 
+// Station names, used as MQTT Topics
 const char stations[6][10] = {"L1", "L2", "L3", "R1", "R2", "R3"};
+
+// Station states, used as MQTT Messages
 const char states[3][10] = {"ACTIVE", "PRESENT", "IDLE"};
+
+// Put the current states into an array for indexing
 int currentStates[6] = {L1_currentState, L2_currentState, L3_currentState, R1_currentState, R2_currentState, R3_currentState};
 
+// Put the pins into arrays for indexing
 const int sensorPins[6] = {L1_sensorPin, L2_sensorPin, L3_sensorPin, R1_sensorPin, R2_sensorPin, R3_sensorPin};
 const int activePins[6] = {L1_activePin, L2_activePin, L3_activePin, R1_activePin, R2_activePin, R3_activePin};
 const int presentPins[6] = {L1_presentPin, L2_presentPin, L3_presentPin, R1_presentPin, R2_presentPin, R3_presentPin};
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  // handle message arrived
-}
-
+// Reconnect to the MQTT broker when the connection is lost
 void reconnect() {
-  Serial.print("connecting...");
-  while (!client.connected()) {
-        Serial.print("Attempting MQTT connection...");
-        // Attempt to connect
-        if (client.connect("magicSurfaceClient")) {
-            Serial.println("connected");
-            // Once connected, publish an announcement...
-            client.publish("magicSurface", "hello world");
-            for (int i = 0; i < 6; i++) {
-              client.subscribe(stations[i]);
-            }
-            // client.unsubscribe("magicSurface");
-        } else {
-            Serial.print("failed, rc=");
-            Serial.print(client.state());
-            Serial.println(" try again in 5 seconds");
-            // Wait 5 seconds before retrying
-            delay(5000);
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect with the client ID
+    if (mqttClient.connect("magicSurfaceClient")) {
+        Serial.println("Connected!");
+        // Once connected, publish an announcement...
+        mqttClient.publish("magicSurface", "CONNECTED");
+
+        // Subscribe to each station topic
+        for (int i = 0; i < NUM_STATIONS; i++) {
+          mqttClient.subscribe(stations[i]);
         }
+    } else {
+        Serial.print("failed, rc=");
+        Serial.print(mqttClient.state());
+        Serial.println(" try again in 5 seconds");
+        // Wait 5 seconds before retrying
+        delay(5000);
     }
-
-  Serial.println("\nconnected!");
-
-  
+  }
 }
 
-void messageReceived(String &topic, String &payload) {
+void messageReceived(char* topic, byte* payload, unsigned int length) {
   Serial.println("incoming: " + topic + " - " + payload);
 }
 
 unsigned long lastMqttMillis = 0;
 
 void setup() {
-  // initialize serial communication:
+  // Initialize serial communication:
   Serial.begin(9600);
-  Ethernet.begin(mac, ip);
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
 
-  // client.onMessage(messageReceived);
+  // Initialize the ethernet connection
+  Ethernet.begin(mac, ip);
+  mqttClient.setServer(mqttServer, 1883);
+  mqttClient.setCallback(messageReceived);
   
-  // Init all pins and set currentStates to IDLE
-  for (int i = 0; i < 6; i++) {
+  // Initialize all pins and set currentStates to IDLE
+  for (int i = 0; i < NUM_STATIONS; i++) {
     pinMode(sensorPins[i], INPUT);
     pinMode(activePins[i], OUTPUT);
     pinMode(presentPins[i], OUTPUT);
@@ -122,14 +125,16 @@ void setup() {
 }
 
 void loop() {
-  if (!client.connected()) {
-      reconnect();
+  if (!mqttClient.connected()) {
+    reconnect();
   }
-  client.loop();
+  mqttClient.loop();
 
-  for (int i = 0; i < 6; i++) {
+  // Run each statin through the state machine
+  for (int i = 0; i < NUM_STATIONS; i++) {
     stateMachine(i);
   }
+  // Small delay to keep things stable
   delay(100);
 }
 
@@ -139,15 +144,23 @@ void stateMachine (int pos) {
   long analogDistance, inches;
   volatile static unsigned long lastStateChangeTime = 0;
 
+  // The raw (voltage) signal coming from the sensor
   analogDistance = analogRead(sensorPins[pos]);
   inches = analogToInches(analogDistance);
 
+  // Get the current sensor state
   tempState = getState(inches);
 
+  // Only set the lastStateChangeTime on the first loop
   if (tempState != lastTempState[pos] && lastTempState[pos] == currentStates[pos]) {
     lastStateChangeTime = millis();
   }
   
+  // Only send the state update on the first loop.
+  // IF the current (temporary) sensor state is not equal to the actual broadcasted state,
+  // AND the current (temporary) state is equal to the last current (temporary) state, (it didn't just change)
+  // AND the last time the state changed (when tempState !=  lastTempState) was more than the state change buffer,
+  // THEN we can safely change the actual state and broadcast it.
   if (
     tempState != currentStates[pos] &&
     tempState == lastTempState[pos] &&
@@ -164,22 +177,19 @@ void stateMachine (int pos) {
     lastStateChangeTime = millis();
     currentStates[pos] = tempState;
     
+    // Publish the message for this station. i.e. client.publish("L1", "ACTIVE")
     client.publish(stations[pos], states[currentStates[pos]]);
   }
-  if (currentStates[pos] == IDLE_STATE) {
-    // Serial.print(stations[pos]);
-    // Serial.println(states[pos]);
-    setIdle(pos);
-  }
-  if (currentStates[pos] == PRESENT_STATE) {
-    // Serial.print(stations[pos]);
-    // Serial.println(states[pos]);
-    setPresent(pos);
-  }
-  if (currentStates[pos] == ACTIVE_STATE) {
-    // Serial.print(stations[pos]);
-    // Serial.println(states[pos]);
-    setActive(pos);
+  switch (currentStates[pos]) {
+    case ACTIVE_STATE:
+      setActive(pos);
+      break;
+    case PRESENT_STATE:
+      setPresent(pos);
+      break;
+    default:
+      setIdle(pos);
+      break;
   }
   lastTempState[pos] = tempState;
 }
