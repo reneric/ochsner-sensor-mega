@@ -11,16 +11,19 @@ IPAddress ip(192, 168, 1, 97);
 // PRESENT: 451-900
 // IDLE: > 900
 
+/*
+ * These three config variables below can be changed
+ */
+#define STATE_CHANGE_BUFFER_SECONDS 2 // The buffer period before changing states
+#define ACTIVE_MAX_INCHES 24          // The max distance for the ACTIVE state
+#define PRESENT_MAX_INCHES 48         // The max distance for the PRESENT state
+
 // Presence States
 #define ACTIVE_STATE 0
 #define PRESENT_STATE 1
 #define IDLE_STATE 2
 
 #define NUM_STATIONS 6                // The number of stations
-
-#define STATE_CHANGE_BUFFER_SECONDS 2 // The buffer period before changing states
-#define ACTIVE_MAX_INCHES 24          // The max distance for the ACTIVE state
-#define PRESENT_MAX_INCHES 48         // The max distance for the PRESENT state
 
 // Station Pins
 const int L1_sensorPin = 54;          // The proximity sensor pin for L1 (INPUT)
