@@ -6,10 +6,14 @@
 byte mac[] = { 0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED };
 IPAddress ip(192, 168, 1, 97);
 
-// Analog Readings from sensor:
-// ACTIVE: 0-450
-// PRESENT: 451-900
-// IDLE: > 900
+/*
+ * Analog Readings from sensor:
+ *
+ * ACTIVE: 0-450
+ * PRESENT: 451-900
+ * IDLE: > 900
+ *
+ */
 
 /*
  * These three config variables below can be changed
@@ -17,6 +21,9 @@ IPAddress ip(192, 168, 1, 97);
 #define STATE_CHANGE_BUFFER_SECONDS 2 // The buffer period before changing states
 #define ACTIVE_MAX_INCHES 24          // The max distance for the ACTIVE state
 #define PRESENT_MAX_INCHES 48         // The max distance for the PRESENT state
+
+// The Client ID for connecting to the MQTT Broker
+// const char "magicSurfaceClient" = "magicSurfaceClient";
 
 // Presence States
 #define ACTIVE_STATE 0
@@ -66,18 +73,18 @@ PubSubClient mqttClient(net);
 const char* mqttServer = "192.168.1.69";
 
 // Station names, used as MQTT Topics
-const char stations[6][10] = {"L1", "L2", "L3", "R1", "R2", "R3"};
+const char stations[NUM_STATIONS][10] = {"L1", "L2", "L3", "R1", "R2", "R3"};
 
 // Station states, used as MQTT Messages
 const char states[3][10] = {"ACTIVE", "PRESENT", "IDLE"};
 
 // Put the current states into an array for indexing
-int currentStates[6] = {L1_currentState, L2_currentState, L3_currentState, R1_currentState, R2_currentState, R3_currentState};
+int currentStates[NUM_STATIONS] = {L1_currentState, L2_currentState, L3_currentState, R1_currentState, R2_currentState, R3_currentState};
 
 // Put the pins into arrays for indexing
-const int sensorPins[6] = {L1_sensorPin, L2_sensorPin, L3_sensorPin, R1_sensorPin, R2_sensorPin, R3_sensorPin};
-const int activePins[6] = {L1_activePin, L2_activePin, L3_activePin, R1_activePin, R2_activePin, R3_activePin};
-const int presentPins[6] = {L1_presentPin, L2_presentPin, L3_presentPin, R1_presentPin, R2_presentPin, R3_presentPin};
+const int sensorPins[NUM_STATIONS] = {L1_sensorPin, L2_sensorPin, L3_sensorPin, R1_sensorPin, R2_sensorPin, R3_sensorPin};
+const int activePins[NUM_STATIONS] = {L1_activePin, L2_activePin, L3_activePin, R1_activePin, R2_activePin, R3_activePin};
+const int presentPins[NUM_STATIONS] = {L1_presentPin, L2_presentPin, L3_presentPin, R1_presentPin, R2_presentPin, R3_presentPin};
 
 // Reconnect to the MQTT broker when the connection is lost
 void reconnect() {
@@ -87,10 +94,11 @@ void reconnect() {
     if (mqttClient.connect("magicSurfaceClient")) {
         Serial.println("Connected!");
         // Once connected, publish an announcement...
-        mqttClient.publish("magicSurface", "CONNECTED");
+        mqttClient.publish("magicSurfaceClient", "CONNECTED");
 
         // Subscribe to each station topic
         for (int i = 0; i < NUM_STATIONS; i++) {
+          mqttClient.publish(stations[i], "CONNECTED SENSOR");
           mqttClient.subscribe(stations[i]);
         }
     } else {
@@ -104,10 +112,20 @@ void reconnect() {
 }
 
 void messageReceived(char* topic, byte* payload, unsigned int length) {
-  Serial.println("incoming: " + topic + " - " + payload);
+  Serial.print("Message arrived [");
+  Serial.print(topic);  
+  Serial.println("] ");
+  char payloadArr[length+1];
+  
+  for (unsigned int i=0;i<length;i++)
+  {
+    payloadArr[i] = (char)payload[i];
+  }
+  payloadArr[length] = 0;
+
+  Serial.println(payloadArr);  // null terminated array
 }
 
-unsigned long lastMqttMillis = 0;
 
 void setup() {
   // Initialize serial communication:
@@ -141,7 +159,7 @@ void loop() {
   delay(100);
 }
 
-int lastTempState[6];
+int lastTempState[NUM_STATIONS];
 void stateMachine (int pos) {
   int tempState;
   long analogDistance, inches;
@@ -159,11 +177,15 @@ void stateMachine (int pos) {
     lastStateChangeTime = millis();
   }
   
-  // Only send the state update on the first loop.
-  // IF the current (temporary) sensor state is not equal to the actual broadcasted state,
-  // AND the current (temporary) state is equal to the last current (temporary) state, (it didn't just change)
-  // AND the last time the state changed (when tempState !=  lastTempState) was more than the state change buffer,
-  // THEN we can safely change the actual state and broadcast it.
+/*
+ * Only send the state update on the first loop.
+ *
+ * IF the current (temporary) sensor state is not equal to the actual broadcasted state,
+ * AND the current (temporary) state is equal to the last current (temporary) state, (it didn't just change)
+ * AND the last time the state changed (when tempState !=  lastTempState) was more than the state change buffer,
+ * THEN we can safely change the actual state and broadcast it.
+ *
+ */
   if (
     tempState != currentStates[pos] &&
     tempState == lastTempState[pos] &&
@@ -181,7 +203,7 @@ void stateMachine (int pos) {
     currentStates[pos] = tempState;
     
     // Publish the message for this station. i.e. client.publish("L1", "ACTIVE")
-    client.publish(stations[pos], states[currentStates[pos]]);
+    mqttClient.publish(stations[pos], states[currentStates[pos]]);
   }
   switch (currentStates[pos]) {
     case ACTIVE_STATE:
