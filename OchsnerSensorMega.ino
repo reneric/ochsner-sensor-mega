@@ -18,7 +18,7 @@ IPAddress ip(192, 168, 1, 97);
 /*
  * These three config variables below can be changed
  */
-#define STATE_CHANGE_BUFFER_SECONDS 2 // The buffer period before changing states
+#define STATE_CHANGE_BUFFER_SECONDS 3 // The buffer period before changing states
 #define ACTIVE_MAX_INCHES 24          // The max distance for the ACTIVE state
 #define PRESENT_MAX_INCHES 48         // The max distance for the PRESENT state
 
@@ -65,6 +65,13 @@ int R1_currentState;
 int R2_currentState;
 int R3_currentState;
 
+bool L1_waiting = false;
+bool L2_waiting = false;
+bool L3_waiting = false;
+bool R1_waiting = false;
+bool R2_waiting = false;
+bool R3_waiting = false;
+
 // Initialize the ethernet library
 EthernetClient net;
 // Initialize the MQTT library
@@ -80,6 +87,7 @@ const char states[3][10] = {"ACTIVE", "PRESENT", "IDLE"};
 
 // Put the current states into an array for indexing
 int currentStates[NUM_STATIONS] = {L1_currentState, L2_currentState, L3_currentState, R1_currentState, R2_currentState, R3_currentState};
+bool stationWaiting[NUM_STATIONS] = {L1_waiting, L2_waiting, L3_waiting, R1_waiting, R2_waiting, R3_waiting};
 
 // Put the pins into arrays for indexing
 const int sensorPins[NUM_STATIONS] = {L1_sensorPin, L2_sensorPin, L3_sensorPin, R1_sensorPin, R2_sensorPin, R3_sensorPin};
@@ -147,7 +155,7 @@ void setup() {
 
 void loop() {
   if (!mqttClient.connected()) {
-    reconnect();
+    // reconnect();
   }
   mqttClient.loop();
 
@@ -156,15 +164,16 @@ void loop() {
     stateMachine(i);
   }
   // Small delay to keep things stable
-  delay(100);
+  delay(10);
 }
 
 int lastTempState[NUM_STATIONS];
 void stateMachine (int pos) {
   int tempState;
   long analogDistance, inches;
+  bool waiting = false;
   volatile static unsigned long lastStateChangeTime = 0;
-
+  
   // The raw (voltage) signal coming from the sensor
   analogDistance = analogRead(sensorPins[pos]);
   inches = analogToInches(analogDistance);
@@ -176,16 +185,22 @@ void stateMachine (int pos) {
   if (tempState != lastTempState[pos] && lastTempState[pos] == currentStates[pos]) {
     lastStateChangeTime = millis();
   }
+
+  stationWaiting[pos] = tempState != currentStates[pos] &&
+                        tempState == lastTempState[pos] &&
+                        (millis() - lastStateChangeTime) < STATE_CHANGE_BUFFER_SECONDS * 1000;
+  waiting = currentStates[pos] == IDLE_STATE && stationWaiting[pos];
+  if (waiting) Serial.println(waiting);
   
-/*
- * Only send the state update on the first loop.
- *
- * IF the current (temporary) sensor state is not equal to the actual broadcasted state,
- * AND the current (temporary) state is equal to the last current (temporary) state, (it didn't just change)
- * AND the last time the state changed (when tempState !=  lastTempState) was more than the state change buffer,
- * THEN we can safely change the actual state and broadcast it.
- *
- */
+  /*
+   * Only send the state update on the first loop.
+   *
+   * IF the current (temporary) sensor state is not equal to the actual broadcasted state,
+   * AND the current (temporary) state is equal to the last current (temporary) state, (it didn't just change)
+   * AND the last time the state changed (when tempState !=  lastTempState) was more than the state change buffer,
+   * THEN we can safely change the actual state and broadcast it.
+   *
+   */
   if (
     tempState != currentStates[pos] &&
     tempState == lastTempState[pos] &&
@@ -205,6 +220,7 @@ void stateMachine (int pos) {
     // Publish the message for this station. i.e. client.publish("L1", "ACTIVE")
     mqttClient.publish(stations[pos], states[currentStates[pos]]);
   }
+
   switch (currentStates[pos]) {
     case ACTIVE_STATE:
       setActive(pos);
@@ -213,25 +229,39 @@ void stateMachine (int pos) {
       setPresent(pos);
       break;
     default:
-      setIdle(pos);
+      if (waiting) {
+        setTripped(pos);
+      }
+      else {
+        setIdle(pos);
+      }
       break;
   }
   lastTempState[pos] = tempState;
 }
 
 void setActive (int pos) {
+  // if (pos == 1) Serial.println("set active");
   digitalWrite(activePins[pos], HIGH);
   digitalWrite(presentPins[pos], LOW);
 }
 
 void setPresent (int pos) {
+  // if (pos == 1) Serial.println("set present");
   digitalWrite(presentPins[pos], HIGH);
   digitalWrite(activePins[pos], LOW);
 }
 
 void setIdle (int pos) {
+  // if (pos == 1) Serial.println("set idle");
   digitalWrite(activePins[pos], LOW);
   digitalWrite(presentPins[pos], LOW);
+}
+
+void setTripped (int pos) {
+  // if (pos == 1) Serial.println("set tripped");
+  digitalWrite(activePins[pos], HIGH);
+  digitalWrite(presentPins[pos], HIGH);
 }
 
 // Map analogInput to inches
