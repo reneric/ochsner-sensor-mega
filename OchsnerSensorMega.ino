@@ -94,6 +94,8 @@ const int sensorPins[NUM_STATIONS] = {L1_sensorPin, L2_sensorPin, L3_sensorPin, 
 const int activePins[NUM_STATIONS] = {L1_activePin, L2_activePin, L3_activePin, R1_activePin, R2_activePin, R3_activePin};
 const int presentPins[NUM_STATIONS] = {L1_presentPin, L2_presentPin, L3_presentPin, R1_presentPin, R2_presentPin, R3_presentPin};
 
+long lastReconnectAttempt = 0;
+
 // Reconnect to the MQTT broker when the connection is lost
 void reconnect() {
   while (!mqttClient.connected()) {
@@ -118,6 +120,25 @@ void reconnect() {
     }
   }
 }
+
+boolean reconnect_non_blocking() {
+  if (mqttClient.connect("magicSurfaceClient")) {
+    Serial.println("Connected!");
+    // Once connected, publish an announcement...
+    mqttClient.publish("magicSurfaceClient", "CONNECTED");
+
+    // Subscribe to each station topic
+    for (int i = 0; i < NUM_STATIONS; i++) {
+      mqttClient.publish(stations[i], "CONNECTED SENSOR");
+      mqttClient.subscribe(stations[i]);
+    }
+  } else {
+    Serial.print("failed, rc=");
+    Serial.print(mqttClient.state());
+  }
+  return mqttClient.connected();
+}
+
 
 void messageReceived(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -151,13 +172,22 @@ void setup() {
     pinMode(presentPins[i], OUTPUT);
     currentStates[i] = IDLE_STATE;
   }
+  lastReconnectAttempt = 0;
 }
 
 void loop() {
   if (!mqttClient.connected()) {
-    // reconnect();
+    long now = millis();
+    if (now - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (reconnect_non_blocking()) {
+        lastReconnectAttempt = 0;
+      }
+    }
+  } else {
+    mqttClient.loop();
   }
-  mqttClient.loop();
 
   // Run each statin through the state machine
   for (int i = 0; i < NUM_STATIONS; i++) {
