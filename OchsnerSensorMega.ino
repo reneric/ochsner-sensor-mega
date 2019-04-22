@@ -3,8 +3,8 @@
 #include <PubSubClient.h>
 
 // Update these with values suitable for your hardware/network.
-byte mac[] = { 0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED };
-IPAddress ip(192, 168, 1, 97);
+byte mac[] = { 0xB1, 0x5F, 0xDC, 0x12, 0x6C, 0x9D };
+IPAddress ip(192, 168, 2, 105);
 
 /*
  * Analog Readings from sensor:
@@ -77,7 +77,7 @@ EthernetClient net;
 // Initialize the MQTT library
 PubSubClient mqttClient(net);
 
-const char* mqttServer = "192.168.1.69";
+const char* mqttServer = "192.168.2.10";
 
 // Station names, used as MQTT Topics
 const char stations[NUM_STATIONS][10] = {"L1", "L2", "L3", "R1", "R2", "R3"};
