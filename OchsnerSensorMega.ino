@@ -77,11 +77,17 @@ EthernetClient net;
 // Initialize the MQTT library
 PubSubClient mqttClient(net);
 
+// The Client ID for connecting to the MQTT Broker
+const char* CLIENT_ID = "MS_LR";
+
+// The Topic for mqtt messaging
+const char* TOPIC = "command/MS_LR";
+
 const char* mqttServer = "192.168.2.10";
 const int mqttPort = 1883;
 
 // Station names, used as MQTT Topics
-const char stations[NUM_STATIONS][10] = {"L1", "L2", "L3", "R1", "R2", "R3"};
+const char stations[NUM_STATIONS][10] = {"MS_L1", "MS_L2", "MS_L3", "MS_R1", "MS_R2", "MS_R3"};
 
 // Station states, used as MQTT Messages
 const char states[3][10] = {"ACTIVE", "PRESENT", "IDLE"};
@@ -102,10 +108,10 @@ void reconnect() {
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect with the client ID
-    if (mqttClient.connect("magicSurfaceClient")) {
+    if (mqttClient.connect(CLIENT_ID)) {
         Serial.println("Connected!");
         // Once connected, publish an announcement...
-        mqttClient.publish("magicSurfaceClient", "CONNECTED", true);
+        mqttClient.publish(CLIENT_ID, "CONNECTED", true);
 
         // Subscribe to each station topic
         for (int i = 0; i < NUM_STATIONS; i++) {
@@ -123,10 +129,10 @@ void reconnect() {
 }
 
 boolean reconnect_non_blocking() {
-  if (mqttClient.connect("magicSurfaceClient")) {
+  if (mqttClient.connect(CLIENT_ID)) {
     Serial.println("Connected!");
     // Once connected, publish an announcement...
-    mqttClient.publish("magicSurfaceClient", "CONNECTED", true);
+    mqttClient.publish(CLIENT_ID, "CONNECTED", true);
 
     // Subscribe to each station topic
     for (int i = 0; i < NUM_STATIONS; i++) {
