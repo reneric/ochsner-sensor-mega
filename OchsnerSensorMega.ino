@@ -78,6 +78,7 @@ EthernetClient net;
 PubSubClient mqttClient(net);
 
 const char* mqttServer = "192.168.2.10";
+const int mqttPort = 1883;
 
 // Station names, used as MQTT Topics
 const char stations[NUM_STATIONS][10] = {"L1", "L2", "L3", "R1", "R2", "R3"};
@@ -104,11 +105,11 @@ void reconnect() {
     if (mqttClient.connect("magicSurfaceClient")) {
         Serial.println("Connected!");
         // Once connected, publish an announcement...
-        mqttClient.publish("magicSurfaceClient", "CONNECTED");
+        mqttClient.publish("magicSurfaceClient", "CONNECTED", true);
 
         // Subscribe to each station topic
         for (int i = 0; i < NUM_STATIONS; i++) {
-          mqttClient.publish(stations[i], "CONNECTED SENSOR");
+          mqttClient.publish(stations[i], "CONNECTED SENSOR", true);
           mqttClient.subscribe(stations[i]);
         }
     } else {
@@ -125,11 +126,11 @@ boolean reconnect_non_blocking() {
   if (mqttClient.connect("magicSurfaceClient")) {
     Serial.println("Connected!");
     // Once connected, publish an announcement...
-    mqttClient.publish("magicSurfaceClient", "CONNECTED");
+    mqttClient.publish("magicSurfaceClient", "CONNECTED", true);
 
     // Subscribe to each station topic
     for (int i = 0; i < NUM_STATIONS; i++) {
-      mqttClient.publish(stations[i], "CONNECTED SENSOR");
+      mqttClient.publish(stations[i], "CONNECTED SENSOR", true);
       mqttClient.subscribe(stations[i]);
     }
   } else {
@@ -162,7 +163,7 @@ void setup() {
 
   // Initialize the ethernet connection
   Ethernet.begin(mac, ip);
-  mqttClient.setServer(mqttServer, 1883);
+  mqttClient.setServer(mqttServer, mqttPort);
   mqttClient.setCallback(messageReceived);
   
   // Initialize all pins and set currentStates to IDLE
@@ -248,7 +249,7 @@ void stateMachine (int pos) {
     currentStates[pos] = tempState;
     
     // Publish the message for this station. i.e. client.publish("L1", "ACTIVE")
-    mqttClient.publish(stations[pos], states[currentStates[pos]]);
+    mqttClient.publish(stations[pos], states[currentStates[pos]], true);
   }
 
   switch (currentStates[pos]) {
