@@ -3,7 +3,7 @@
 #include <PubSubClient.h>
 
 // Update these with values suitable for your hardware/network.
-byte mac[] = { 0xB1, 0x5F, 0xDC, 0x12, 0x6C, 0x9D };
+byte mac[] = { 0xE7, 0xC4, 0x64, 0x2E, 0x27, 0xA4 };
 IPAddress ip(192, 168, 2, 105);
 
 /*
