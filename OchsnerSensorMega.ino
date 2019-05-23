@@ -29,6 +29,7 @@ IPAddress ip(192, 168, 2, 105);
 #define ACTIVE_STATE 0
 #define PRESENT_STATE 1
 #define IDLE_STATE 2
+#define TRIGGERED_STATE 3
 
 #define NUM_STATIONS 6                // The number of stations
 
@@ -90,7 +91,7 @@ const int mqttPort = 1883;
 const char stations[NUM_STATIONS][10] = {"MS_L1", "MS_L2", "MS_L3", "MS_R1", "MS_R2", "MS_R3"};
 
 // Station states, used as MQTT Messages
-const char states[3][10] = {"ACTIVE", "PRESENT", "IDLE"};
+const char states[4][10] = {"ACTIVE", "PRESENT", "IDLE", "TRIGGERED"};
 
 // Put the current states into an array for indexing
 int currentStates[NUM_STATIONS] = {L1_currentState, L2_currentState, L3_currentState, R1_currentState, R2_currentState, R3_currentState};
@@ -225,7 +226,7 @@ void stateMachine (int pos) {
 
   stationWaiting[pos] = tempState != currentStates[pos] &&
                         tempState == lastTempState[pos] &&
-                        (millis() - lastStateChangeTime) < STATE_CHANGE_BUFFER_SECONDS * 1000;
+                        (millis() - lastStateChangeTime) <= STATE_CHANGE_BUFFER_SECONDS * 1000;
   waiting = currentStates[pos] == IDLE_STATE && stationWaiting[pos];
   if (waiting) Serial.println(waiting);
   
@@ -252,7 +253,7 @@ void stateMachine (int pos) {
     Serial.println(tempState);
 #endif
     lastStateChangeTime = millis();
-    currentStates[pos] = tempState;
+    currentStates[pos] = waiting ? TRIGGERED_STATE : tempState;
     
     // Publish the message for this station. i.e. client.publish("L1", "ACTIVE")
     mqttClient.publish(stations[pos], states[currentStates[pos]], true);
@@ -265,13 +266,11 @@ void stateMachine (int pos) {
     case PRESENT_STATE:
       setPresent(pos);
       break;
+    case TRIGGERED_STATE:
+      setTripped(pos);
+      break;
     default:
-      if (waiting) {
-        setTripped(pos);
-      }
-      else {
-        setIdle(pos);
-      }
+      setIdle(pos);
       break;
   }
   lastTempState[pos] = tempState;
